@@ -1,32 +1,42 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { findConfigsRoot } from './config_utils';
 
 // maps recognized YAML keys to their source file paths relative to the Configs root.
+// these are built-in mappings, which can be overridden or extended in Config/Extension/element_mappings.json.
 const element_key_mapping: Record<string, string> = {
-    'Item':             path.join('Source', 'Items.yaml'),
-    'Items':            path.join('Source', 'Items.yaml'),
-    'Droptable':        path.join('Source', 'Droptables.yaml'),
-    'Locale':           path.join('Source', 'World', 'Locales.yaml'),
-    'Tableau':          path.join('Source', 'World', 'Tableaus.yaml'),
-    'SpawnTable':       path.join('Source', 'World', 'PrefabSpawnTables.yaml'),
-    'Reward':           path.join('Source', 'Economy', 'Rewards.yaml'),
-    'ConverterTypes':   path.join('Source', 'Crafting', 'RecipeConverters.yaml'),
-    'Faction':          path.join('Source', 'Factions.yaml'),
-    'Professions':      path.join('Source', 'NPCs', 'Professions.yaml'),
-    'Communities':      path.join('Source', 'NPCs', 'Communities.yaml'),
-    'Cultures':         path.join('Source', 'NPCs', 'Cultures.yaml'),
-    'DefaultMood':      path.join('Source', 'NPCs', 'Moods.yaml'),
-    'HomeSite':         path.join('Source', 'World', 'Sites.yaml'),
-    'Site':             path.join('Source', 'World', 'Sites.yaml'),
-    'HomeRegion':       path.join('Source', 'World', 'Regions.yaml'),
-    'ShopItem':         path.join('Source', 'Economy', 'ShopItems.yaml'),
-    'ShopItems':        path.join('Source', 'Economy', 'ShopItems.yaml'),
-    'Recipe':           path.join('Source', 'Crafting', 'Recipes.yaml'),
+    // 'Item':             path.join('Source', 'Items.yaml'),
 };
 
-// regex built from the map keys for parsing
-const element_key_regex = Object.keys(element_key_mapping).join('|');
+/**
+ * Read extra element key mappings from {configsRoot}/Extension/element_mappings.json.
+ * The file should be a JSON object mapping YAML key names to Configs-relative paths
+ * using forward slashes, e.g. { "MyKey": "Source/MyFile.yaml" }.
+ * Returns an empty object if the file does not exist or cannot be parsed.
+ */
+function readExtraMappings(configsRoot: string): Record<string, string>
+{
+    const filePath = path.join(configsRoot, 'Extension', 'element_mappings.json');
+    try
+    {
+        const raw = fs.readFileSync(filePath, 'utf8');
+        const parsed = JSON.parse(raw) as unknown;
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+        const result: Record<string, string> = {};
+        for (const [key, val] of Object.entries(parsed))
+        {
+            if (typeof val === 'string') result[key] = val.split('/').join(path.sep);
+        }
+        return result;
+    }
+    catch { return {}; }
+}
+
+function getMergedMapping(configsRoot: string): Record<string, string>
+{
+    return { ...element_key_mapping, ...readExtraMappings(configsRoot) };
+}
 
 interface ElementDef
 {
@@ -40,35 +50,9 @@ function escapeRegex(str: string): string
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * Walk up the directory tree to find the Configs root: a directory that
- * contains both Source/ and Include/ subdirectories.
- */
-function findConfigsRoot(filePath: string): string | undefined
+function getElementFilePath(keyType: string, configsRoot: string, mapping: Record<string, string>): string | undefined
 {
-    let dir = path.dirname(filePath);
-    while (true)
-    {
-        try
-        {
-            if (
-                fs.statSync(path.join(dir, 'Source')).isDirectory() &&
-                fs.statSync(path.join(dir, 'Include')).isDirectory()
-            )
-            {
-                return dir;
-            }
-        } catch { /* keep walking */ }
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-    }
-    return undefined;
-}
-
-function getElementFilePath(keyType: string, configsRoot: string): string | undefined
-{
-    const rel = element_key_mapping[keyType];
+    const rel = mapping[keyType];
     return rel ? path.join(configsRoot, rel) : undefined;
 }
 
@@ -78,10 +62,11 @@ function getElementFilePath(keyType: string, configsRoot: string): string | unde
  */
 function parseElementKeyValueAtPosition(
     lineText: string,
-    character: number
+    character: number,
+    keyRegex: string
 ): { keyType: string; name: string } | undefined
 {
-    const match = lineText.match(new RegExp(`^(\\s*(?:-\\s+)?(${element_key_regex}):\\s*)(\\S.*)$`));
+    const match = lineText.match(new RegExp(`^(\\s*(?:-\\s+)?(${keyRegex}):\\s*)(\\S.*)$`));
     if (!match) return undefined;
 
     const keyType = match[2];
@@ -132,10 +117,11 @@ function parseElementKeyValueAtPosition(
 function findEnclosingElementKey(
     document: vscode.TextDocument,
     lineNumber: number,
-    dashIndent: number
+    dashIndent: number,
+    keyRegex: string
 ): string | undefined
 {
-    const keyPattern = new RegExp(`^(\\s*(?:-\\s+)?)(${element_key_regex}):\\s*(#.*)?$`);
+    const keyPattern = new RegExp(`^(\\s*(?:-\\s+)?)(${keyRegex}):\\s*(#.*)?$`);
     for (let i = lineNumber - 1; i >= 0; i--)
     {
         const text = document.lineAt(i).text;
@@ -157,11 +143,12 @@ function parseElementRefAtPosition(
     lineText: string,
     character: number,
     document: vscode.TextDocument,
-    lineNumber: number
+    lineNumber: number,
+    keyRegex: string
 ): { keyType: string; name: string } | undefined
 {
     // try `key: value` or `key: [v, v]` first (covers `- key: value` too)
-    const kvResult = parseElementKeyValueAtPosition(lineText, character);
+    const kvResult = parseElementKeyValueAtPosition(lineText, character, keyRegex);
     if (kvResult) return kvResult;
 
     // try bare list item: `  - SomeName` (pure string list item, no key on this line)
@@ -173,7 +160,7 @@ function parseElementRefAtPosition(
         if (character >= nameStart && character <= nameStart + name.length)
         {
             const dashIndent = lineText.search(/\S/); // column of '-'
-            const keyType = findEnclosingElementKey(document, lineNumber, dashIndent);
+            const keyType = findEnclosingElementKey(document, lineNumber, dashIndent, keyRegex);
             if (keyType) return { keyType, name };
         }
     }
@@ -285,14 +272,16 @@ export class YamlElementDefinitionProvider implements vscode.DefinitionProvider
         _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Definition>
     {
-        const lineText = document.lineAt(position.line).text;
-        const ref = parseElementRefAtPosition(lineText, position.character, document, position.line);
-        if (!ref) return undefined;
-
         const configsRoot = findConfigsRoot(document.fileName);
         if (!configsRoot) return undefined;
 
-        const filePath = getElementFilePath(ref.keyType, configsRoot);
+        const mapping = getMergedMapping(configsRoot);
+        const keyRegex = Object.keys(mapping).join('|');
+        const lineText = document.lineAt(position.line).text;
+        const ref = parseElementRefAtPosition(lineText, position.character, document, position.line, keyRegex);
+        if (!ref) return undefined;
+
+        const filePath = getElementFilePath(ref.keyType, configsRoot, mapping);
         if (!filePath) return undefined;
 
         const def = searchElementDefinition(filePath, ref.name);
@@ -313,14 +302,16 @@ export class YamlElementHoverProvider implements vscode.HoverProvider
         _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Hover>
     {
-        const lineText = document.lineAt(position.line).text;
-        const ref = parseElementRefAtPosition(lineText, position.character, document, position.line);
-        if (!ref) return undefined;
-
         const configsRoot = findConfigsRoot(document.fileName);
         if (!configsRoot) return undefined;
 
-        const filePath = getElementFilePath(ref.keyType, configsRoot);
+        const mapping = getMergedMapping(configsRoot);
+        const keyRegex = Object.keys(mapping).join('|');
+        const lineText = document.lineAt(position.line).text;
+        const ref = parseElementRefAtPosition(lineText, position.character, document, position.line, keyRegex);
+        if (!ref) return undefined;
+
+        const filePath = getElementFilePath(ref.keyType, configsRoot, mapping);
         if (!filePath) return undefined;
 
         const def = searchElementDefinition(filePath, ref.name);
@@ -341,6 +332,11 @@ export class YamlElementCompletionProvider implements vscode.CompletionItemProvi
         _context: vscode.CompletionContext
     ): vscode.ProviderResult<vscode.CompletionItem[]>
     {
+        const configsRoot = findConfigsRoot(document.fileName);
+        if (!configsRoot) return undefined;
+
+        const mapping = getMergedMapping(configsRoot);
+        const keyRegex = Object.keys(mapping).join('|');
         const lineText = document.lineAt(position.line).text;
         const linePrefix = lineText.slice(0, position.character);
 
@@ -348,7 +344,7 @@ export class YamlElementCompletionProvider implements vscode.CompletionItemProvi
         let valueAreaStart: number | undefined;
 
         // Key: value or Key: [..] pattern (handles `Item:`, `Items:`, `- Item:`, etc.)
-        const keyMatch = linePrefix.match(new RegExp(`^(\\s*(?:-\\s+)?(${element_key_regex}):\\s*)`));
+        const keyMatch = linePrefix.match(new RegExp(`^(\\s*(?:-\\s+)?(${keyRegex}):\\s*)`));
         if (keyMatch && position.character >= keyMatch[1].length)
         {
             keyType = keyMatch[2];
@@ -362,17 +358,14 @@ export class YamlElementCompletionProvider implements vscode.CompletionItemProvi
             if (bareMatch && position.character >= bareMatch[1].length)
             {
                 const dashIndent = lineText.search(/\S/);
-                keyType = findEnclosingElementKey(document, position.line, dashIndent);
+                keyType = findEnclosingElementKey(document, position.line, dashIndent, keyRegex);
                 valueAreaStart = bareMatch[1].length;
             }
         }
 
         if (!keyType || valueAreaStart === undefined) return undefined;
 
-        const configsRoot = findConfigsRoot(document.fileName);
-        if (!configsRoot) return undefined;
-
-        const filePath = getElementFilePath(keyType, configsRoot);
+        const filePath = getElementFilePath(keyType, configsRoot, mapping);
         if (!filePath) return undefined;
 
         // compute the range of the token currently being typed

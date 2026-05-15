@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { findConfigsRoot } from './config_utils';
 
 interface IncludeDefinition
 {
@@ -12,39 +13,6 @@ interface IncludeDefinition
 function escapeRegex(str: string): string
 {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Walk up the directory tree from the given file, looking for a parent
- * directory that contains an "Include/" subdirectory with .yaml files.
- * For a source file at Configs/Source/World/Sites.yaml, this finds Configs/.
- */
-function findIncludeDirectory(filePath: string): string | undefined
-{
-    let dir = path.dirname(filePath);
-    while (true)
-    {
-        const candidate = path.join(dir, 'Include');
-        try
-        {
-            if (fs.statSync(candidate).isDirectory())
-            {
-                const files = fs.readdirSync(candidate);
-                if (files.some(f => f.endsWith('.yaml')))
-                {
-                    return candidate;
-                }
-            }
-        } catch
-        {
-            // not found at this level, keep walking up
-        }
-        const parent = path.dirname(dir);
-        if (parent === dir)
-            break; // reached filesystem root
-        dir = parent;
-    }
-    return undefined;
 }
 
 /**
@@ -251,11 +219,9 @@ export class YamlIncludeDefinitionProvider implements vscode.DefinitionProvider
             return undefined;
         }
 
-        const includeDir = findIncludeDirectory(document.fileName);
-        if (!includeDir)
-        {
-            return undefined;
-        }
+        const configsRoot = findConfigsRoot(document.fileName);
+        if (!configsRoot) return undefined;
+        const includeDir = path.join(configsRoot, 'Include');
 
         const definition = searchIncludeDefinition(includeDir, includeName);
         if (!definition)
@@ -285,11 +251,9 @@ export class YamlIncludeHoverProvider implements vscode.HoverProvider
             return undefined;
         }
 
-        const includeDir = findIncludeDirectory(document.fileName);
-        if (!includeDir)
-        {
-            return undefined;
-        }
+        const configsRoot = findConfigsRoot(document.fileName);
+        if (!configsRoot) return undefined;
+        const includeDir = path.join(configsRoot, 'Include');
 
         const definition = searchIncludeDefinition(includeDir, includeName);
         if (!definition)
@@ -321,11 +285,9 @@ export class YamlIncludeCompletionProvider implements vscode.CompletionItemProvi
             return undefined;
         }
 
-        const includeDir = findIncludeDirectory(document.fileName);
-        if (!includeDir)
-        {
-            return undefined;
-        }
+        const configsRoot = findConfigsRoot(document.fileName);
+        if (!configsRoot) return undefined;
+        const includeDir = path.join(configsRoot, 'Include');
 
         // detect if the current token starts with $ to configure filterText and range
         const valueStart = includeLineMatch[1].length;

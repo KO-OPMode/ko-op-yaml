@@ -3,10 +3,10 @@ import { YamlIncludeDefinitionProvider, YamlIncludeHoverProvider, YamlIncludeCom
 import { YamlElementDefinitionProvider, YamlElementHoverProvider, YamlElementCompletionProvider } from './providers/yaml_element_provider';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Extension "ko-op-yaml" is now active 2!');
+    console.log('Extension "ko-op-yaml" is now active!');
 
     const disposable = vscode.commands.registerCommand('ko-op-yaml.helloWorld', () => {
-        vscode.window.showInformationMessage('Hello World from ko-op-yaml 2!');
+        vscode.window.showInformationMessage('Hello World from ko-op-yaml!');
     });
 
     const yamlSelector: vscode.DocumentSelector = { language: 'yaml', scheme: 'file', pattern: '**/Configs/**/*.yaml' };
