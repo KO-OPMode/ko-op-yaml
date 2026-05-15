@@ -1,7 +1,5 @@
 # Ko-op YAML
 
-_developed by jacob_
-
 KO_OP Visual Studio Code extension for config `.yaml` files, which do not natively support cross-file references.
 
 
@@ -24,12 +22,11 @@ ask jacob
 
 3. 🚨 **Important**: to get the full use of autocomplete and see content previews, you MUST **manually** click on the > in the far right of the tooltip at least once.
 
-![](docs/yaml_expand_card.gif)
+![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_expand_card.gif)
 
-![](docs/yaml_wrong_expand.png)  |  ![](docs/yaml_right_expand.png)
-|---|---|
 ❌ Wrong, click the arrow circled            |  ✅ Correct
-
+|---|---|
+![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_wrong_expand.png)  |  ![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_right_expand.png)
 
 
 ## Requirements
@@ -150,4 +147,3 @@ I don't know how.
 ### Why regex instead of parsing the YAML nodes properly?
 
 We needed to keep editor character positioning and comments for previews; parsing the yaml directly loses all that. Also, this lets us support any syntax that might not be valid YAML.
-

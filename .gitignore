@@ -4,5 +4,6 @@ node_modules
 .vscode-test/
 *.vsix
 src/test/sample_data
+secret
 
 .DS_Store
