@@ -333,15 +333,16 @@ export class YamlIncludeCompletionProvider implements vscode.CompletionItemProvi
         const currentSegment = textSoFar.split(/[,\[]/).pop() ?? '';
         const segmentTrimmed = currentSegment.trimStart();
         const hasDollar = segmentTrimmed.startsWith('$');
-        const tokenCharStart = position.character - segmentTrimmed.length;
-        const itemRange = new vscode.Range(position.line, tokenCharStart, position.line, position.character);
+        const itemCharStart = position.character - segmentTrimmed.length;
+        const itemRange = new vscode.Range(position.line, itemCharStart, position.line, position.character);
 
         return getAllIncludeDefinitions(includeDir).map(def =>
         {
             const item = new vscode.CompletionItem(def.name, vscode.CompletionItemKind.Reference);
-            // show a preview of the content in the detail field (first 2 non-empty lines)
-            const preview = def.content.split('\n').slice(1, 3).map(l => l.trim()).filter(Boolean).join('  ');
-            item.detail = `${def.fileName}${preview ? `  —  ${preview}` : ''}`;
+            // when not expanded, show a preview of the content in the detail field (first 2 non-empty lines)
+            // const preview = def.content.split('\n').slice(1, 3).map(l => l.trim()).filter(Boolean).join('  ');
+            // item.detail = `${def.fileName}${preview ? `  —  ${preview}` : ''}`;
+            item.detail = def.fileName;
             item.range = itemRange;
             if (hasDollar)
             {
