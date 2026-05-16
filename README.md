@@ -24,9 +24,11 @@ ask jacob
 
 ![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_expand_card.gif)
 
-❌ Wrong, click the arrow circled            |  ✅ Correct
-|---|---|
-![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_wrong_expand.png)  |  ![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_right_expand.png)
+![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_wrong_expand.png)
+❌ Wrong, click the arrow circled
+
+![](https://raw.githubusercontent.com/KO-OPMode/ko-op-yaml/main/docs/yaml_right_expand.png)
+✅ Correct
 
 
 ## Requirements
