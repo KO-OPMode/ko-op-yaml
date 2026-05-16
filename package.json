@@ -2,7 +2,7 @@
   "name": "ko-op-yaml",
   "displayName": "ko-op-yaml",
   "description": "",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.116.0"
   },
