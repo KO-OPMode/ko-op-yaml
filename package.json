@@ -3,6 +3,10 @@
   "displayName": "ko-op-yaml",
   "description": "",
   "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KO-OPMode/ko-op-yaml.git"
+  },
   "engines": {
     "vscode": "^1.116.0"
   },
