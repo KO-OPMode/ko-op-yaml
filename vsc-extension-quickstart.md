@@ -1,3 +1,5 @@
+_this came as part of of the VS Code scaffolding -jacob_
+
 # Welcome to your VS Code Extension
 
 ## What's in the folder
