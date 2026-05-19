@@ -15,8 +15,7 @@ This extension adds editing support for these cross-file references:
 ## Instructions
 
 1. Install the plug-in
-ask jacob
-@jacob TODO
+https://marketplace.visualstudio.com/items?itemName=koop.ko-op-yaml
 
 2. Open a `.yaml` file in `Configs/` (or any sub-directory thereof)
 
