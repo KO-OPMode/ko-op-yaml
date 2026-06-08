@@ -5,7 +5,7 @@ KO_OP Visual Studio Code extension for config `.yaml` files, which do not native
 
 Our config files support:
 - reusing content blocks with `include: ITemplateName` or the shorthand `$ITemplateName`
-- referencing library elements, such as a `Quest`, `Recipe`, or `Shop` specifying an `Item: KeyName` that exists in `iItems.yaml > Elements > KeyName`
+- referencing library elements, such as a `Quest`, `Recipe`, or `Shop` specifying an `Item: KeyName` that exists in `Items.yaml > Elements > KeyName`
 
 This extension adds editing support for these cross-file references:
 - **Auto-complete**: suggest all valid entries for the key with an inline preview of the content. Use the arrow keys to quickly cycle between them, and enter to select.
@@ -14,7 +14,7 @@ This extension adds editing support for these cross-file references:
 
 ## Instructions
 
-1. Install the plug-in
+1. Install the extension and be sure to enable Auto-Update
 https://marketplace.visualstudio.com/items?itemName=koop.ko-op-yaml
 
 2. Open a `.yaml` file in `Configs/` (or any sub-directory thereof)
