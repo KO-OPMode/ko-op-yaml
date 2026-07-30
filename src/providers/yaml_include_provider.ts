@@ -68,7 +68,7 @@ function parseIncludeAtPosition(lineText: string, character: number): string | u
     }
 
     // Format 2: $ shorthand, any other YAML key with a $-prefixed value, e.g. `Chance: $Common`
-    const dollarMatch = lineText.match(/^(\s*\S+:\s*)(\$[A-Za-z][A-Za-z0-9_$]*)/);
+    const dollarMatch = lineText.match(/^(\s*(?:-\s+)?\S+:\s*)(\$[A-Za-z][A-Za-z0-9_$]*)/);
     if (dollarMatch)
     {
         const valueStart = dollarMatch[1].length;
@@ -313,7 +313,7 @@ export class YamlIncludeCompletionProvider implements vscode.CompletionItemProvi
         else
         {
             // any other key: only trigger if the value typed so far starts with $
-            const dollarMatch = lineText.slice(0, position.character).match(/^(\s*\S+:\s*)(\$[A-Za-z0-9_$]*)$/);
+            const dollarMatch = lineText.slice(0, position.character).match(/^(\s*(?:-\s+)?\S+:\s*)(\$[A-Za-z0-9_$]*)$/);
             if (!dollarMatch)
             {
                 return undefined;
