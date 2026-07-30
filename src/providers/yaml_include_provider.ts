@@ -16,54 +16,70 @@ function escapeRegex(str: string): string
 }
 
 /**
- * Given a line like `include: Name` or `include: [Name1, Name2]`
- * and a cursor character offset, returns the include name under the cursor,
- * or undefined if the cursor is not on an include value.
- * Works with optional $ prefix: `include: $Name` or `include: [$Name1, $Name2]`
+ * Returns the include name at the current cursor position.
+ * Supports multiple formats:
+ * - `include: Name`
+ * - `include: [Name1, $Name2]` with or without the `$` prefix
+ * - `$Name`
+ * 
+ * @param lineText The text of the current line.
+ * @param character The cursor position within the line.
+ * @returns the include name or undefined if the cursor is not on an include value.
  */
 function parseIncludeAtPosition(lineText: string, character: number): string | undefined
 {
-    // match the include key and its value
-    const match = lineText.match(/^(\s*include:\s*)(\S.*)$/);
-    if (!match)
+    // Format 1: include: key ($ optional, supports list syntax)
+    const includeMatch = lineText.match(/^(\s*include:\s*)(\S.*)$/);
+    if (includeMatch)
     {
-        return undefined;
-    }
+        const valueStart = includeMatch[1].length;
+        const valueStr = includeMatch[2].trimEnd();
 
-    const valueStart = match[1].length;
-    const valueStr = match[2].trimEnd();
-
-    if (valueStr.startsWith('[') && valueStr.endsWith(']'))
-    {
-        // list syntax: include: [$Name1, $Name2]
-        const inner = valueStr.slice(1, -1);
-        const innerStart = valueStart + 1;
-        let pos = 0;
-        for (const segment of inner.split(','))
+        if (valueStr.startsWith('[') && valueStr.endsWith(']'))
         {
-            const raw = segment.trim(); // keep $ for accurate position matching
-            if (raw.length > 0)
+            // list syntax: include: [$Name1, $Name2]
+            const inner = valueStr.slice(1, -1);
+            const innerStart = valueStart + 1;
+            let pos = 0;
+            for (const segment of inner.split(','))
             {
-                const itemStart = innerStart + pos + segment.indexOf(raw);
-                const itemEnd = itemStart + raw.length;
-                if (character >= itemStart && character <= itemEnd)
+                const raw = segment.trim(); // keep $ for accurate position matching
+                if (raw.length > 0)
                 {
-                    return raw.replace(/^\$/, '');
+                    const itemStart = innerStart + pos + segment.indexOf(raw);
+                    const itemEnd = itemStart + raw.length;
+                    if (character >= itemStart && character <= itemEnd)
+                    {
+                        return raw.replace(/^\$/, '');
+                    }
                 }
+                pos += segment.length + 1; // +1 for the comma
             }
-            pos += segment.length + 1; // +1 for the comma
         }
-        return undefined;
-    }
-    else
-    {
-        // single value: include: $Name ($ is optional)
-        if (character >= valueStart && character <= valueStart + valueStr.length)
+        else
         {
-            return valueStr.replace(/^\$/, '');
+            // single value: include: $Name ($ is optional)
+            if (character >= valueStart && character <= valueStart + valueStr.length)
+            {
+                return valueStr.replace(/^\$/, '');
+            }
         }
         return undefined;
     }
+
+    // Format 2: $ shorthand, any other YAML key with a $-prefixed value, e.g. `Chance: $Common`
+    const dollarMatch = lineText.match(/^(\s*\S+:\s*)(\$[A-Za-z][A-Za-z0-9_$]*)/);
+    if (dollarMatch)
+    {
+        const valueStart = dollarMatch[1].length;
+        const valueEnd = valueStart + dollarMatch[2].length;
+        if (character >= valueStart && character <= valueEnd)
+        {
+            return dollarMatch[2].slice(1); // strip leading $
+        }
+    }
+
+    return undefined;
 }
 
 /**
@@ -278,25 +294,41 @@ export class YamlIncludeCompletionProvider implements vscode.CompletionItemProvi
     {
         const lineText = document.lineAt(position.line).text;
 
-        // only trigger on include: value positions
+        let hasDollar = false;
+        let dollarRequired = false;
+        let itemRange: vscode.Range;
+
         const includeLineMatch = lineText.match(/^(\s*include:\s*)/);
-        if (!includeLineMatch || position.character < includeLineMatch[1].length)
+        if (includeLineMatch && position.character >= includeLineMatch[1].length)
         {
-            return undefined;
+            // include: line — $ is optional
+            const valueStart = includeLineMatch[1].length;
+            const textSoFar = lineText.slice(valueStart, position.character);
+            const currentSegment = textSoFar.split(/[,\[]/).pop() ?? '';
+            const segmentTrimmed = currentSegment.trimStart();
+            hasDollar = segmentTrimmed.startsWith('$');
+            const itemCharStart = position.character - segmentTrimmed.length;
+            itemRange = new vscode.Range(position.line, itemCharStart, position.line, position.character);
+        }
+        else
+        {
+            // any other key: only trigger if the value typed so far starts with $
+            const dollarMatch = lineText.slice(0, position.character).match(/^(\s*\S+:\s*)(\$[A-Za-z0-9_$]*)$/);
+            if (!dollarMatch)
+            {
+                return undefined;
+            }
+            const tokenStart = dollarMatch[1].length;
+            const afterCursor = lineText.slice(position.character).match(/^[A-Za-z0-9_$]*/)?.[0] ?? '';
+            const tokenEnd = position.character + afterCursor.length;
+            itemRange = new vscode.Range(position.line, tokenStart, position.line, tokenEnd);
+            hasDollar = true;
+            dollarRequired = true;
         }
 
         const configsRoot = findConfigsRoot(document.fileName);
         if (!configsRoot) return undefined;
         const includeDir = path.join(configsRoot, 'Include');
-
-        // detect if the current token starts with $ to configure filterText and range
-        const valueStart = includeLineMatch[1].length;
-        const textSoFar = lineText.slice(valueStart, position.character);
-        const currentSegment = textSoFar.split(/[,\[]/).pop() ?? '';
-        const segmentTrimmed = currentSegment.trimStart();
-        const hasDollar = segmentTrimmed.startsWith('$');
-        const itemCharStart = position.character - segmentTrimmed.length;
-        const itemRange = new vscode.Range(position.line, itemCharStart, position.line, position.character);
 
         return getAllIncludeDefinitions(includeDir).map(def =>
         {
@@ -309,6 +341,10 @@ export class YamlIncludeCompletionProvider implements vscode.CompletionItemProvi
             if (hasDollar)
             {
                 item.filterText = '$' + def.name;
+            }
+            if (dollarRequired)
+            {
+                item.insertText = '$' + def.name;
             }
             const docs = new vscode.MarkdownString();
             docs.appendCodeblock(def.content, 'yaml');
